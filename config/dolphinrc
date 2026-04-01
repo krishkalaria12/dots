@@ -1,0 +1,29 @@
+[CompactMode]
+PreviewSize=144
+
+[DetailsMode]
+PreviewSize=32
+
+[Dolphin]
+GroupedSorting=false
+PreviewsShown=true
+
+[General]
+GlobalViewProps=true
+ShowFullPath=true
+ShowStatusBar=FullWidth
+SplitView=false
+Version=202
+
+[IconsMode]
+PreviewSize=208
+
+[KFileDialog Settings]
+Places Icons Auto-resize=false
+Places Icons Static Size=22
+
+[MainWindow]
+MenuBar=Disabled
+
+[PreviewSettings]
+Plugins=ffmpegthumbnailer,appimagethumbnail,audiothumbnail,avif,blenderthumbnail,comicbookthumbnail,cursorthumbnail,djvuthumbnail,ebookthumbnail,exrthumbnail,directorythumbnail,fontthumbnail,heif,imagethumbnail,jpegthumbnail,jxl,kraorathumbnail,windowsexethumbnail,windowsimagethumbnail,mobithumbnail,opendocumentthumbnail,gsthumbnail,rawthumbnail,librsvg,svgthumbnail,ffmpegthumbs,gdk-pixbuf-thumbnailer,gsf-office
