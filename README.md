@@ -82,7 +82,7 @@ yay -S dms-shell-git zed zen-browser-bin
 2. Clone the repo.
 
 ```bash
-git clone <your-repo-url> ~/dotfiles
+git clone https://github.com/krishkalaria12/dots ~/dotfiles
 ```
 
 3. Copy the tracked config into place.
