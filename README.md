@@ -18,6 +18,7 @@ personal linux dotfiles built around:
 - `btop`
 - `Sweet-cursors`
 - `Inter` / `Iosevka`
+- curated wallpapers
 
 the repo is being built incrementally and only tracks config that is stable and intentional.
 
@@ -88,13 +89,14 @@ git clone https://github.com/krishkalaria12/dots ~/dotfiles
 3. Copy the tracked config into place.
 
 ```bash
-mkdir -p ~/.config ~/.local/bin ~/.local/share/fonts ~/.local/share/icons
+mkdir -p ~/.config ~/.local/bin ~/.local/share/fonts ~/.local/share/icons ~/Pictures/Wallpapers
 cp -r ~/dotfiles/home/. ~/
 cp -r ~/dotfiles/config/{DankMaterialShell,btop,fish,ghostty,niri,qt5ct,qt6ct} ~/.config/
 cp ~/dotfiles/config/{dolphinrc,kdeglobals} ~/.config/
 cp -r ~/dotfiles/config/fonts/. ~/.local/share/fonts/
 cp -r ~/dotfiles/config/icons/. ~/.local/share/icons/
 cp -r ~/dotfiles/local/bin/. ~/.local/bin/
+cp -r ~/dotfiles/wallpapers/. ~/Pictures/Wallpapers/
 chmod +x ~/.local/bin/*
 fc-cache -fv
 ```
@@ -106,8 +108,8 @@ systemctl --user daemon-reload
 systemctl --user enable --now dms.service
 ```
 
-> [!NOTE]
-> This repo is still evolving. Wallpapers and larger visual assets are intentionally being added later instead of being dumped in all at once.
+> [!TIP]
+> A curated wallpaper pack is included in `wallpapers/` if you want the same base set.
 
 ## Structure
 
@@ -133,11 +135,12 @@ systemctl --user enable --now dms.service
 ├── local
 │   └── bin
 │       └── niri-screenshot-select.sh
-└── screenshots
+├── screenshots
+└── wallpapers
 ```
 
 ## Notes
 
 - this is a curated repo, not a raw backup of `~/.config`
 - machine junk, caches, and generated state stay out unless they are intentionally part of the setup
-- wallpapers and larger assets will be added in later passes
+- the wallpaper folder is a curated subset, not the full personal wallpaper collection
