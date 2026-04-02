@@ -19,8 +19,9 @@ personal linux dotfiles built around:
 - `Sweet-cursors`
 - `Inter` / `Iosevka`
 - curated wallpapers
+- optional `dsearch` file search
 
-the repo is being built incrementally and only tracks config that is stable and intentional.
+the repo is curated instead of dumping the whole home directory. the goal is to keep the setup reproducible without shipping a ton of machine junk.
 
 ### Search
 >
@@ -71,58 +72,77 @@ the repo is being built incrementally and only tracks config that is stable and 
 
 ## Installation
 
-manual setup is recommended for now.
+### Prerequisites
 
-1. Install the core packages you want.
+before running the installer, make sure these already exist on your machine:
+
+- `git`
+- `yay`
+- `curl` for the one-line install path
+- Arch Linux / pacman-based system
+
+the setup script intentionally does **not** bootstrap `git` or `yay` for you.
+
+### Script Setup
 
 ```bash
-sudo pacman -S --needed niri ghostty dolphin fish zsh btop wl-clipboard grim slurp brightnessctl hyprpicker fastfetch starship zoxide papirus-icon-theme qt5ct qt6ct
-yay -S dms-shell-git zed zen-browser-bin
+bash <(curl -fsSL https://raw.githubusercontent.com/krishkalaria12/dots/main/setup.sh)
 ```
 
-2. Clone the repo.
+you can also run it from a local clone:
 
 ```bash
 git clone https://github.com/krishkalaria12/dots ~/dotfiles
+cd ~/dotfiles
+./setup.sh
 ```
 
-3. Copy the tracked config into place.
+### Manual Setup
+
+1. clone the repo.
 
 ```bash
-mkdir -p ~/.config ~/.local/bin ~/.local/share/fonts ~/.local/share/icons ~/Pictures/Wallpapers
-cp -r ~/dotfiles/home/. ~/
-cp -r ~/dotfiles/config/{DankMaterialShell,btop,fish,ghostty,niri,qt5ct,qt6ct} ~/.config/
-cp ~/dotfiles/config/{dolphinrc,kdeglobals} ~/.config/
-cp -r ~/dotfiles/config/fonts/. ~/.local/share/fonts/
-cp -r ~/dotfiles/config/icons/. ~/.local/share/icons/
-cp -r ~/dotfiles/local/bin/. ~/.local/bin/
-cp -r ~/dotfiles/wallpapers/. ~/Pictures/Wallpapers/
-chmod +x ~/.local/bin/*
-fc-cache -fv
+git clone https://github.com/krishkalaria12/dots ~/dotfiles
+cd ~/dotfiles
 ```
 
-4. Restart your session, then enable user services if needed.
+2. install the tracked packages.
 
 ```bash
-systemctl --user daemon-reload
-systemctl --user enable --now dms.service
+sudo pacman -S --needed $(grep -vE '^[[:space:]]*(#|$)' packages/pacman.txt)
+yay -S --needed $(grep -vE '^[[:space:]]*(#|$)' packages/aur.txt)
 ```
+
+optional extras live in `packages/optional.txt`.
+
+3. run the installer without package installation.
+
+```bash
+./setup.sh --skip-packages
+```
+
+4. log out and choose the `niri` session.
 
 > [!TIP]
-> A curated wallpaper pack is included in `wallpapers/` if you want the same base set.
+> A curated wallpaper pack is included in `assets/wallpapers/` if you want the same base set.
+
+> [!NOTE]
+> The installer creates backups in `~/.local/state/dots-backups` before replacing matching files.
 
 ## Structure
 
 ```text
 .
+├── assets
+│   ├── fonts
+│   ├── icons
+│   └── wallpapers
 ├── config
 │   ├── btop
 │   ├── DankMaterialShell
 │   ├── dolphinrc
 │   ├── fish
-│   ├── fonts
 │   ├── ghostty
-│   ├── icons
 │   ├── kdeglobals
 │   ├── niri
 │   ├── qt5ct
@@ -131,16 +151,25 @@ systemctl --user enable --now dms.service
 │   ├── .gitconfig
 │   ├── .profile
 │   └── .zshrc
-├── install
 ├── local
 │   └── bin
+│       ├── brightness
 │       └── niri-screenshot-select.sh
+├── packages
+│   ├── aur.txt
+│   ├── optional.txt
+│   └── pacman.txt
 ├── screenshots
-└── wallpapers
+├── services
+│   └── user
+│       ├── dms.service
+│       └── dsearch.service
+└── setup.sh
 ```
 
 ## Notes
 
 - this is a curated repo, not a raw backup of `~/.config`
 - machine junk, caches, and generated state stay out unless they are intentionally part of the setup
+- `dsearch` config is generated per-user during setup because indexed paths depend on the local machine
 - the wallpaper folder is a curated subset, not the full personal wallpaper collection
