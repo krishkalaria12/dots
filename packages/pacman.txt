@@ -1,0 +1,30 @@
+# core desktop
+niri
+ghostty
+dolphin
+fish
+zsh
+btop
+
+# wayland tools
+wl-clipboard
+cliphist
+grim
+slurp
+brightnessctl
+hyprpicker
+pipewire
+wireplumber
+
+# shell / terminal extras
+fastfetch
+starship
+zoxide
+
+# theming
+papirus-icon-theme
+qt5ct-kde
+qt6ct-kde
+
+# file search backend
+go

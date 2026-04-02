@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+if [[ $# -ne 1 ]]; then
+    printf 'usage: brightness <value>\n' >&2
+    exit 1
+fi
+
+brightnessctl set "$1"
