@@ -76,12 +76,12 @@ the repo is curated instead of dumping the whole home directory. the goal is to 
 
 before running the installer, make sure these already exist on your machine:
 
-- `git`
-- `yay`
-- `curl` for the one-line install path
 - Arch Linux / pacman-based system
+- internet access
+- a sudo-enabled user
+- `curl` only if you want the one-line install path
 
-the setup script intentionally does **not** bootstrap `git` or `yay` for you.
+the setup script bootstraps `git` when it needs to fetch the repo itself, and bootstraps `base-devel` plus `yay` before package installation.
 
 ### Script Setup
 
@@ -121,6 +121,8 @@ yay -S --needed $(grep -vE '^[[:space:]]*(#|$)' packages/aur.txt)
 ```
 
 hardware-specific extras live in `packages/optional.txt`.
+
+the installer bootstraps package tooling first, then installs the full profile.
 
 3. run the installer without package installation.
 

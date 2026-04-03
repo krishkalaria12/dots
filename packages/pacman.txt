@@ -1,4 +1,5 @@
 # core desktop
+git
 niri
 ghostty
 dolphin
@@ -17,7 +18,10 @@ grim
 slurp
 brightnessctl
 hyprpicker
+
+# audio
 pipewire
+pipewire-pulse
 wireplumber
 
 # shell / terminal extras
@@ -25,7 +29,17 @@ fastfetch
 starship
 zoxide
 
+# connectivity and device integration
+networkmanager
+bluez
+bluez-utils
+upower
+
+# desktop auth integration
+polkit-kde-agent
+
 # theming
+fontconfig
 papirus-icon-theme
 qt5ct-kde
 qt6ct-kde

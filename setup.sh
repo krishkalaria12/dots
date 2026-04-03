@@ -43,8 +43,9 @@ usage: setup.sh [options]
 installer for the default krishkalaria12/dots arch profile.
 
 prerequisites:
-  - git
-  - yay
+  - Arch Linux with pacman
+  - internet access
+  - a sudo-enabled user
 
 options:
   --repo-url URL         clone/fetch from a different repo url
@@ -101,6 +102,11 @@ script_dir() {
   dirname "$(readlink -f "$src")"
 }
 
+is_repo_root() {
+  local path="$1"
+  [[ -d "$path/config" && -d "$path/home" && -d "$path/assets" ]]
+}
+
 append_unique() {
   local value="$1"
   shift
@@ -137,6 +143,7 @@ read_manifest_into() {
 
 core_commands() {
   printf '%s\n' \
+    git \
     niri \
     dms \
     go \
@@ -148,10 +155,18 @@ core_commands() {
     wl-paste \
     cliphist \
     wpctl \
+    nmcli \
+    bluetoothctl \
+    upower \
+    fc-cache \
     brightnessctl \
     grim \
     slurp \
     systemctl
+}
+
+core_runtime_paths() {
+  printf '%s\n' /usr/lib/polkit-kde-authentication-agent-1
 }
 
 optional_commands() {
@@ -167,6 +182,8 @@ optional_commands() {
 validate_runtime_requirements() {
   local required=()
   local missing=()
+  local required_paths=()
+  local missing_paths=()
   local cmd
 
   while IFS= read -r cmd; do
@@ -179,12 +196,25 @@ validate_runtime_requirements() {
     append_unique "$cmd" "${required[@]:-}" || required+=("$cmd")
   done < <(optional_commands)
 
+  while IFS= read -r cmd; do
+    [[ -n "$cmd" ]] || continue
+    append_unique "$cmd" "${required_paths[@]:-}" || required_paths+=("$cmd")
+  done < <(core_runtime_paths)
+
   for cmd in "${required[@]:-}"; do
     command -v "$cmd" >/dev/null 2>&1 || missing+=("$cmd")
   done
 
+  for cmd in "${required_paths[@]:-}"; do
+    [[ -x "$cmd" ]] || missing_paths+=("$cmd")
+  done
+
   if ((${#missing[@]})); then
     die "missing required commands for the selected profile: ${missing[*]}"
+  fi
+
+  if ((${#missing_paths[@]})); then
+    die "missing required runtime files for the selected profile: ${missing_paths[*]}"
   fi
 }
 
@@ -193,11 +223,63 @@ require_arch_environment() {
   [[ -f /etc/arch-release ]] || warn "'/etc/arch-release' not found; continuing because pacman is available"
 }
 
+install_pacman_packages() {
+  local packages=("$@")
+  ((${#packages[@]})) || return 0
+
+  need_cmd sudo
+  log "installing bootstrap pacman packages"
+  sudo pacman -S --needed "${packages[@]}"
+}
+
+bootstrap_repo_access() {
+  local source_root
+  source_root="$(script_dir)"
+
+  if is_repo_root "$source_root"; then
+    return
+  fi
+
+  if command -v git >/dev/null 2>&1; then
+    return
+  fi
+
+  log "bootstrapping git for repo download"
+  install_pacman_packages git
+}
+
+bootstrap_yay() {
+  local temp_dir yay_dir
+
+  command -v yay >/dev/null 2>&1 && return
+
+  log "bootstrapping yay"
+  temp_dir="$(mktemp -d)"
+  yay_dir="$temp_dir/yay"
+
+  git clone https://aur.archlinux.org/yay.git "$yay_dir"
+  (
+    cd "$yay_dir"
+    makepkg -si --noconfirm
+  )
+
+  rm -rf "$temp_dir"
+}
+
+bootstrap_package_tools() {
+  if ((SKIP_PACKAGES)); then
+    return
+  fi
+
+  install_pacman_packages git base-devel
+  bootstrap_yay
+}
+
 # ── repo resolution ───────────────────────────────────────────────────────────
 resolve_repo_dir() {
   local source_root
   source_root="$(script_dir)"
-  if [[ -d "$source_root/config" && -d "$source_root/home" && -d "$source_root/assets" ]]; then
+  if is_repo_root "$source_root"; then
     printf '%s\n' "$source_root"
     return
   fi
@@ -344,7 +426,7 @@ install_packages() {
   fi
 
   command -v pacman >/dev/null 2>&1 || die "pacman is required for package installation"
-  command -v yay >/dev/null 2>&1 || die "yay is required for AUR packages. install yay first."
+  command -v yay >/dev/null 2>&1 || die "yay bootstrap failed"
   need_cmd sudo
 
   if ((${#PACMAN_PACKAGES[@]})); then
@@ -512,6 +594,7 @@ print_banner() {
 main() {
   print_banner
   require_arch_environment
+  bootstrap_repo_access
 
   local repo_root
   repo_root="$(resolve_repo_dir)"
@@ -519,6 +602,7 @@ main() {
   collect_packages "$repo_root"
   confirm_plan
 
+  bootstrap_package_tools
   install_packages
   validate_runtime_requirements
   apply_profile "$repo_root"
