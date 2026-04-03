@@ -20,12 +20,18 @@ REPO_URL="${REPO_URL:-https://github.com/krishkalaria12/dots.git}"
 REPO_BRANCH="${REPO_BRANCH:-main}"
 INSTALL_DIR="${INSTALL_DIR:-$HOME/.local/share/dots}"
 DSEARCH_DIR="${DSEARCH_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/dots/danksearch}"
+STATE_ROOT="${STATE_ROOT:-${XDG_STATE_HOME:-$HOME/.local/state}/dots}"
+INSTALL_MANIFEST="${INSTALL_MANIFEST:-$STATE_ROOT/install-manifest.txt}"
+LAST_INSTALL_FILE="${LAST_INSTALL_FILE:-$STATE_ROOT/last-install.txt}"
+FIRSTRUN_FILE="${FIRSTRUN_FILE:-$STATE_ROOT/installed_true}"
 
 NON_INTERACTIVE=0
 SKIP_PACKAGES=0
 SKIP_BACKUP=0
 WITH_GIT_CONFIG=0
 WITH_ASUS=0
+CURRENT_MANIFEST_FILE=""
+INSTALL_FIRSTRUN=0
 
 # ── logging ───────────────────────────────────────────────────────────────────
 timestamp() { date +"%Y%m%d-%H%M%S"; }
@@ -150,8 +156,12 @@ core_commands() {
     ghostty \
     dolphin \
     nvim \
+    sddm \
+    rsync \
+    xdg-user-dirs-update \
     zen-browser \
     hyprpicker \
+    wl-copy \
     wl-paste \
     cliphist \
     wpctl \
@@ -275,6 +285,130 @@ bootstrap_package_tools() {
   bootstrap_yay
 }
 
+ensure_state_root() {
+  mkdir -p "$STATE_ROOT"
+}
+
+begin_install_state() {
+  ensure_state_root
+
+  if [[ -f "$FIRSTRUN_FILE" ]]; then
+    INSTALL_FIRSTRUN=0
+  else
+    INSTALL_FIRSTRUN=1
+  fi
+
+  CURRENT_MANIFEST_FILE="$(mktemp "$STATE_ROOT/install-manifest.XXXXXX")"
+}
+
+cleanup_install_state() {
+  if [[ -n "$CURRENT_MANIFEST_FILE" && -f "$CURRENT_MANIFEST_FILE" ]]; then
+    rm -f "$CURRENT_MANIFEST_FILE"
+  fi
+}
+
+record_installed_target() {
+  local target="$1"
+  [[ -n "$CURRENT_MANIFEST_FILE" ]] || return 0
+  [[ -e "$target" ]] || return 0
+
+  realpath -se "$target" >> "$CURRENT_MANIFEST_FILE"
+}
+
+record_dir_tree() {
+  local target_dir="$1"
+  [[ -d "$target_dir" ]] || return 0
+
+  record_installed_target "$target_dir"
+  while IFS= read -r path; do
+    [[ -n "$path" ]] || continue
+    record_installed_target "$path"
+  done < <(find "$target_dir" -mindepth 1 -print | sort)
+}
+
+finalize_install_state() {
+  ensure_state_root
+  [[ -n "$CURRENT_MANIFEST_FILE" && -f "$CURRENT_MANIFEST_FILE" ]] || return 0
+
+  sort -u "$CURRENT_MANIFEST_FILE" > "$INSTALL_MANIFEST"
+  touch "$FIRSTRUN_FILE"
+
+  cat > "$LAST_INSTALL_FILE" <<EOF
+timestamp=$(timestamp)
+repo_dir=$1
+first_run=$INSTALL_FIRSTRUN
+with_git_config=$WITH_GIT_CONFIG
+with_asus=$WITH_ASUS
+EOF
+
+  cleanup_install_state
+}
+
+verify_exists() {
+  local path="$1"
+  [[ -e "$path" ]] || die "missing expected installed path: $path"
+}
+
+verify_system_service_enabled() {
+  local unit="$1"
+  systemctl is-enabled --quiet "$unit" || die "system service is not enabled: $unit"
+}
+
+verify_user_service_enabled() {
+  local unit="$1"
+  run_user_systemctl is-enabled "$unit" >/dev/null 2>&1 || die "user service is not enabled: $unit"
+}
+
+ensure_user_in_group() {
+  local group_name="$1"
+  local user_name
+
+  getent group "$group_name" >/dev/null 2>&1 || return 0
+
+  user_name="$(id -un)"
+  if id -nG "$user_name" | tr ' ' '\n' | grep -Fx "$group_name" >/dev/null 2>&1; then
+    return 0
+  fi
+
+  need_cmd sudo
+  info "adding $user_name to $group_name group"
+  sudo usermod -aG "$group_name" "$user_name"
+}
+
+enable_system_service() {
+  local unit="$1"
+
+  need_cmd sudo
+  info "enabling $unit"
+  sudo systemctl enable --now "$unit"
+}
+
+run_user_systemctl() {
+  local user_name
+  user_name="$(id -un)"
+
+  if [[ -n "${DBUS_SESSION_BUS_ADDRESS:-}" && -n "${XDG_RUNTIME_DIR:-}" ]]; then
+    systemctl --user "$@"
+  else
+    need_cmd sudo
+    sudo systemctl --machine="${user_name}@.host" --user "$@"
+  fi
+}
+
+setup_system() {
+  log "configuring system services"
+
+  if command -v xdg-user-dirs-update >/dev/null 2>&1; then
+    info "updating xdg user directories"
+    xdg-user-dirs-update
+  fi
+
+  ensure_user_in_group video
+  enable_system_service NetworkManager.service
+  enable_system_service bluetooth.service
+  enable_system_service sddm.service
+}
+
 # ── repo resolution ───────────────────────────────────────────────────────────
 resolve_repo_dir() {
   local source_root
@@ -330,6 +464,7 @@ confirm_plan() {
   printf '\n'
   printf "  Pacman packages: %s\n" "${PACMAN_PACKAGES[*]:-(none)}"
   printf "  AUR packages:    %s\n" "${AUR_PACKAGES[*]:-(none)}"
+  printf "  System services: %s\n" "NetworkManager.service bluetooth.service sddm.service"
   if ((SKIP_BACKUP)); then
     printf "  Backup first:    no\n"
   else
@@ -382,6 +517,7 @@ install_file() {
   mkdir -p "$(dirname "$dest")"
   backup_if_exists "$dest"
   cp -a "$src" "$dest"
+  record_installed_target "$dest"
 }
 
 install_dir() {
@@ -389,8 +525,9 @@ install_dir() {
   local dest="$2"
   mkdir -p "$(dirname "$dest")"
   backup_if_exists "$dest"
-  rm -rf "$dest"
-  cp -a "$src" "$dest"
+  mkdir -p "$dest"
+  rsync -a --delete "$src"/ "$dest"/
+  record_dir_tree "$dest"
 }
 
 install_dir_contents() {
@@ -406,6 +543,11 @@ install_dir_contents() {
     backup_if_exists "$dest_entry"
     rm -rf "$dest_entry"
     cp -a "$entry" "$dest_entry"
+    if [[ -d "$dest_entry" ]]; then
+      record_dir_tree "$dest_entry"
+    else
+      record_installed_target "$dest_entry"
+    fi
   done
   shopt -u nullglob dotglob
 }
@@ -416,6 +558,7 @@ install_rendered_home_file() {
   mkdir -p "$(dirname "$dest")"
   backup_if_exists "$dest"
   sed "s#__HOME__#$HOME#g" "$src" > "$dest"
+  record_installed_target "$dest"
 }
 
 # ── package installation ──────────────────────────────────────────────────────
@@ -564,16 +707,37 @@ post_install() {
     fc-cache -fv >/dev/null || true
   fi
 
-  if ! systemctl --user daemon-reload; then
+  if ! run_user_systemctl daemon-reload; then
     warn "failed to reload user systemd units"
     return
   fi
 
-  systemctl --user enable --now dms.service || warn "failed to enable dms.service"
+  run_user_systemctl enable --now dms.service || warn "failed to enable dms.service"
 
   if command -v dsearch >/dev/null 2>&1; then
-    systemctl --user enable --now dsearch.service || warn "failed to enable dsearch.service"
+    run_user_systemctl enable --now dsearch.service || warn "failed to enable dsearch.service"
   fi
+}
+
+verify_install() {
+  log "verifying installed profile"
+
+  verify_system_service_enabled NetworkManager.service
+  verify_system_service_enabled bluetooth.service
+  verify_system_service_enabled sddm.service
+
+  verify_user_service_enabled dms.service
+  verify_user_service_enabled dsearch.service
+
+  verify_exists "$HOME/.config/niri/config.kdl"
+  verify_exists "$HOME/.config/systemd/user/dms.service"
+  verify_exists "$HOME/.config/systemd/user/dsearch.service"
+  verify_exists "$HOME/.local/bin/dsearch"
+  verify_exists "$HOME/.local/bin/brightness"
+  verify_exists "$HOME/.local/bin/niri-screenshot-select.sh"
+  verify_exists "$INSTALL_MANIFEST"
+  verify_exists "$LAST_INSTALL_FILE"
+  verify_exists "$FIRSTRUN_FILE"
 }
 
 # ── banner ────────────────────────────────────────────────────────────────────
@@ -605,16 +769,23 @@ main() {
   bootstrap_package_tools
   install_packages
   validate_runtime_requirements
+  begin_install_state
+  trap cleanup_install_state EXIT INT TERM
+  setup_system
   apply_profile "$repo_root"
   post_install
+  finalize_install_state "$repo_root"
+  verify_install
+  trap - EXIT INT TERM
 
   printf '\n'
   log 'done'
   if [[ -n "$BACKUP_ROOT" ]]; then
     printf '  backup: %s\n' "$BACKUP_ROOT"
   fi
+  printf '  state:  %s\n' "$STATE_ROOT"
   printf '  repo:   %s\n' "$repo_root"
-  printf '  next:   log out and choose the niri session if needed\n\n'
+  printf '  next:   reboot or log out, then choose the niri session in sddm\n\n'
 }
 
 main "$@"

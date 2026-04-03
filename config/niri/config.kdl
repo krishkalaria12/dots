@@ -164,5 +164,6 @@ binds {
 // STARTUP //
 /////////////
 
+spawn-at-startup "/usr/lib/polkit-kde-authentication-agent-1"
 spawn-at-startup "bash" "-lc" "wl-paste --watch cliphist store &"
 spawn-at-startup "systemctl" "start" "--user" "dms.service"

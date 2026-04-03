@@ -1,6 +1,7 @@
 # core desktop
 git
 niri
+sddm
 ghostty
 dolphin
 fish
@@ -8,10 +9,12 @@ zsh
 neovim
 eza
 btop
+rsync
 
 # wayland tools
 xdg-desktop-portal
 xdg-desktop-portal-gtk
+xdg-user-dirs
 wl-clipboard
 cliphist
 grim

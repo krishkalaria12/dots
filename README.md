@@ -82,6 +82,7 @@ before running the installer, make sure these already exist on your machine:
 - `curl` only if you want the one-line install path
 
 the setup script bootstraps `git` when it needs to fetch the repo itself, and bootstraps `base-devel` plus `yay` before package installation.
+it also enables the core system services for the supported profile, including `NetworkManager`, `bluetooth`, and `sddm`.
 
 ### Script Setup
 
@@ -123,6 +124,7 @@ yay -S --needed $(grep -vE '^[[:space:]]*(#|$)' packages/aur.txt)
 hardware-specific extras live in `packages/optional.txt`.
 
 the installer bootstraps package tooling first, then installs the full profile.
+it also sets up system services so the machine can boot into the supported graphical session.
 
 3. run the installer without package installation.
 
