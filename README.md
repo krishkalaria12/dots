@@ -19,7 +19,7 @@ personal linux dotfiles built around:
 - `Sweet-cursors`
 - `Inter` / `Iosevka`
 - curated wallpapers
-- optional `dsearch` file search
+- `dsearch` file search
 
 the repo is curated instead of dumping the whole home directory. the goal is to keep the setup reproducible without shipping a ton of machine junk.
 
@@ -85,6 +85,13 @@ the setup script intentionally does **not** bootstrap `git` or `yay` for you.
 
 ### Script Setup
 
+the default install path now targets one supported Arch profile.
+
+optional extras:
+
+- `--with-git-config` installs the repo's `.gitconfig`
+- `--with-asus` installs the hardware-specific asus package set
+
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/krishkalaria12/dots/main/setup.sh)
 ```
@@ -113,7 +120,7 @@ sudo pacman -S --needed $(grep -vE '^[[:space:]]*(#|$)' packages/pacman.txt)
 yay -S --needed $(grep -vE '^[[:space:]]*(#|$)' packages/aur.txt)
 ```
 
-optional extras live in `packages/optional.txt`.
+hardware-specific extras live in `packages/optional.txt`.
 
 3. run the installer without package installation.
 

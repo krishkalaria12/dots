@@ -24,24 +24,8 @@ DSEARCH_DIR="${DSEARCH_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/dots/danksearch}"
 NON_INTERACTIVE=0
 SKIP_PACKAGES=0
 SKIP_BACKUP=0
-COMPONENTS_ARG=""
-
-# ── component catalogue ───────────────────────────────────────────────────────
-# package tokens prefixed with aur: are installed with yay.
-COMPONENT_DEFS=(
-  "shell|Portable shell env, fish, zsh, and editor|fish zsh neovim fastfetch starship zoxide eza"
-  "terminal|Ghostty terminal|ghostty"
-  "niri|Niri compositor config|niri xdg-desktop-portal xdg-desktop-portal-gtk"
-  "dms|Dank Material Shell, launcher, and shell integration|aur:dms-shell-git hyprpicker wl-clipboard cliphist pipewire wireplumber"
-  "desktop|Dolphin plus KDE/Qt theming|dolphin qt5ct-kde qt6ct-kde"
-  "tools|Btop and local helper scripts|btop grim slurp brightnessctl"
-  "apps|Default app targets from keybinds|aur:zed-preview-bin aur:zen-browser-bin"
-  "assets|Fonts, cursor theme, and wallpapers|aur:whitesur-icon-theme papirus-icon-theme"
-  "git|Safe git defaults (opt-in)|"
-  "search|DankSearch file search backend|go"
-)
-
-DEFAULT_COMPONENTS=(shell terminal niri dms desktop tools apps assets)
+WITH_GIT_CONFIG=0
+WITH_ASUS=0
 
 # ── logging ───────────────────────────────────────────────────────────────────
 timestamp() { date +"%Y%m%d-%H%M%S"; }
@@ -56,7 +40,7 @@ usage() {
   cat <<EOF
 usage: setup.sh [options]
 
-interactive installer for krishkalaria12/dots (arch linux + niri + dms).
+installer for the default krishkalaria12/dots arch profile.
 
 prerequisites:
   - git
@@ -66,10 +50,9 @@ options:
   --repo-url URL         clone/fetch from a different repo url
   --branch NAME          branch to clone or update (default: ${REPO_BRANCH})
   --repo-dir PATH        target directory for the downloaded repo (default: ${INSTALL_DIR})
-  --components LIST      comma-separated list of components to install without
-                         the interactive menu (e.g. shell,terminal,niri)
-                         valid components: shell terminal niri dms desktop tools apps assets git search
-  --non-interactive      install all components without prompting
+  --with-git-config      install the optional ~/.gitconfig shipped in this repo
+  --with-asus            install the optional asus hardware package set
+  --non-interactive      skip the confirmation prompt
   --skip-packages        skip package installation
   --skip-backup          skip backup creation before overwrite
   -h, --help             show this help message
@@ -91,9 +74,10 @@ while (($# > 0)); do
     --repo-dir)
       [[ $# -ge 2 ]] || die "--repo-dir requires a value"
       INSTALL_DIR="$2"; shift 2 ;;
-    --components)
-      [[ $# -ge 2 ]] || die "--components requires a value"
-      COMPONENTS_ARG="$2"; NON_INTERACTIVE=1; shift 2 ;;
+    --with-git-config)
+      WITH_GIT_CONFIG=1; shift ;;
+    --with-asus)
+      WITH_ASUS=1; shift ;;
     --non-interactive)
       NON_INTERACTIVE=1; shift ;;
     --skip-packages)
@@ -117,11 +101,6 @@ script_dir() {
   dirname "$(readlink -f "$src")"
 }
 
-field() { printf '%s\n' "$1" | cut -d'|' -f"$2"; }
-comp_key()  { field "$1" 1; }
-comp_desc() { field "$1" 2; }
-comp_pkgs() { printf '%s\n' "$1" | cut -d'|' -f3-; }
-
 append_unique() {
   local value="$1"
   shift
@@ -132,53 +111,80 @@ append_unique() {
   return 1
 }
 
-component_commands() {
-  case "$1" in
-    terminal)
-      printf '%s\n' ghostty
-      ;;
-    niri)
-      printf '%s\n' niri
-      ;;
-    dms)
-      printf '%s\n' dms hyprpicker wl-paste cliphist wpctl systemctl
-      ;;
-    desktop)
-      printf '%s\n' dolphin
-      ;;
-    tools)
-      printf '%s\n' brightnessctl grim slurp
-      ;;
-    apps)
-      printf '%s\n' zed zen-browser
-      ;;
-    git)
-      printf '%s\n' git
-      ;;
-    search)
-      printf '%s\n' git go
-      ;;
-  esac
+read_manifest_into() {
+  local manifest="$1"
+  local kind="$2"
+  local line
+
+  [[ -f "$manifest" ]] || die "package manifest not found: $manifest"
+
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    [[ "$line" =~ ^[[:space:]]*($|#) ]] && continue
+
+    case "$kind" in
+      pacman)
+        append_unique "$line" "${PACMAN_PACKAGES[@]:-}" || PACMAN_PACKAGES+=("$line")
+        ;;
+      aur)
+        append_unique "$line" "${AUR_PACKAGES[@]:-}" || AUR_PACKAGES+=("$line")
+        ;;
+      *)
+        die "unknown manifest kind: $kind"
+        ;;
+    esac
+  done < "$manifest"
+}
+
+core_commands() {
+  printf '%s\n' \
+    niri \
+    dms \
+    go \
+    ghostty \
+    dolphin \
+    nvim \
+    zen-browser \
+    hyprpicker \
+    wl-paste \
+    cliphist \
+    wpctl \
+    brightnessctl \
+    grim \
+    slurp \
+    systemctl
+}
+
+optional_commands() {
+  if ((WITH_GIT_CONFIG)); then
+    printf '%s\n' git
+  fi
+
+  if ((WITH_ASUS)); then
+    printf '%s\n' asusctl
+  fi
 }
 
 validate_runtime_requirements() {
   local required=()
   local missing=()
-  local comp cmd
+  local cmd
 
-  for comp in "${SELECTED_COMPONENTS[@]}"; do
-    while IFS= read -r cmd; do
-      [[ -n "$cmd" ]] || continue
-      append_unique "$cmd" "${required[@]:-}" || required+=("$cmd")
-    done < <(component_commands "$comp")
-  done
+  while IFS= read -r cmd; do
+    [[ -n "$cmd" ]] || continue
+    append_unique "$cmd" "${required[@]:-}" || required+=("$cmd")
+  done < <(core_commands)
+
+  while IFS= read -r cmd; do
+    [[ -n "$cmd" ]] || continue
+    append_unique "$cmd" "${required[@]:-}" || required+=("$cmd")
+  done < <(optional_commands)
 
   for cmd in "${required[@]:-}"; do
     command -v "$cmd" >/dev/null 2>&1 || missing+=("$cmd")
   done
 
   if ((${#missing[@]})); then
-    die "missing required commands for selected components: ${missing[*]}"
+    die "missing required commands for the selected profile: ${missing[*]}"
   fi
 }
 
@@ -215,136 +221,30 @@ resolve_repo_dir() {
   printf '%s\n' "$INSTALL_DIR"
 }
 
-# ── interactive component selection ──────────────────────────────────────────
-interactive_component_menu() {
-  local n=${#COMPONENT_DEFS[@]}
-  local selected=()
-  local i key def default_comp
-
-  for ((i = 0; i < n; i++)); do
-    def="${COMPONENT_DEFS[$i]}"
-    key="$(comp_key "$def")"
-    selected[i]=0
-    for default_comp in "${DEFAULT_COMPONENTS[@]}"; do
-      if [[ "$default_comp" == "$key" ]]; then
-        selected[i]=1
-        break
-      fi
-    done
-  done
-
-  while true; do
-    printf '\n'
-    printf "${C_BOLD}${C_CYAN}  Select components to install${C_RESET}\n"
-    printf "${C_DIM}  Toggle with a number · (a) all · (n) none · (d) done · (q) quit${C_RESET}\n\n"
-
-    for ((i = 0; i < n; i++)); do
-      local def key desc checkbox
-      def="${COMPONENT_DEFS[$i]}"
-      key="$(comp_key "$def")"
-      desc="$(comp_desc "$def")"
-      if ((selected[i])); then
-        checkbox="${C_GREEN}[✓]${C_RESET}"
-      else
-        checkbox="${C_DIM}[ ]${C_RESET}"
-      fi
-      printf "  %b  %2d)  %-12s  %b%s%b\n" "$checkbox" $((i + 1)) "$key" "$C_BOLD" "$desc" "$C_RESET"
-    done
-
-    printf '\n'
-    printf "${C_CYAN}  choice:${C_RESET} "
-    local choice
-    read -r choice
-
-    case "$choice" in
-      a|A)
-        for ((i = 0; i < n; i++)); do selected[i]=1; done ;;
-      n|N)
-        for ((i = 0; i < n; i++)); do selected[i]=0; done ;;
-      d|D|'')
-        break ;;
-      q|Q)
-        printf '\n%b  aborted.%b\n\n' "$C_YELLOW" "$C_RESET"
-        exit 0 ;;
-      *)
-        local token
-        for token in ${choice//,/ }; do
-          if [[ "$token" =~ ^[0-9]+$ ]] && ((token >= 1 && token <= n)); then
-            local idx=$((token - 1))
-            selected[idx]=$((1 - selected[idx]))
-          else
-            printf "  ${C_YELLOW}ignoring unknown input: %s${C_RESET}\n" "$token"
-          fi
-        done
-        ;;
-    esac
-  done
-
-  SELECTED_COMPONENTS=()
-  for ((i = 0; i < n; i++)); do
-    if ((selected[i])); then
-      SELECTED_COMPONENTS+=("$(comp_key "${COMPONENT_DEFS[$i]}")")
-    fi
-  done
-}
-
-resolve_selected_components() {
-  SELECTED_COMPONENTS=()
-
-  if ((NON_INTERACTIVE)); then
-    if [[ -z "$COMPONENTS_ARG" || "$COMPONENTS_ARG" == "all" ]]; then
-      local def
-      for def in "${COMPONENT_DEFS[@]}"; do
-        SELECTED_COMPONENTS+=("$(comp_key "$def")")
-      done
-    else
-      IFS=',' read -ra SELECTED_COMPONENTS <<< "$COMPONENTS_ARG"
-      local comp def found
-      for comp in "${SELECTED_COMPONENTS[@]}"; do
-        found=0
-        for def in "${COMPONENT_DEFS[@]}"; do
-          [[ "$(comp_key "$def")" == "$comp" ]] && found=1 && break
-        done
-        ((found)) || die "unknown component '$comp'"
-      done
-    fi
-    return
-  fi
-
-  interactive_component_menu
-}
-
 # ── plan and package collection ──────────────────────────────────────────────
 collect_packages() {
+  local repo_root="$1"
+
   PACMAN_PACKAGES=()
   AUR_PACKAGES=()
 
-  local comp def token token_list
-  for comp in "${SELECTED_COMPONENTS[@]}"; do
-    for def in "${COMPONENT_DEFS[@]}"; do
-      [[ "$(comp_key "$def")" == "$comp" ]] || continue
-      token_list="$(comp_pkgs "$def")"
-      for token in $token_list; do
-        if [[ "$token" == aur:* ]]; then
-          token="${token#aur:}"
-          append_unique "$token" "${AUR_PACKAGES[@]:-}" || AUR_PACKAGES+=("$token")
-        else
-          append_unique "$token" "${PACMAN_PACKAGES[@]:-}" || PACMAN_PACKAGES+=("$token")
-        fi
-      done
-      break
-    done
-  done
+  read_manifest_into "$repo_root/packages/pacman.txt" pacman
+  read_manifest_into "$repo_root/packages/aur.txt" aur
+
+  if ((WITH_ASUS)); then
+    read_manifest_into "$repo_root/packages/optional.txt" pacman
+  fi
 }
 
 confirm_plan() {
   printf '\n'
   printf "${C_BOLD}${C_CYAN}  Installation plan${C_RESET}\n\n"
-  printf "  Components:\n"
-  local comp
-  for comp in "${SELECTED_COMPONENTS[@]}"; do
-    printf "    ${C_GREEN}✓${C_RESET}  %s\n" "$comp"
-  done
+  printf "  Profile:\n"
+  printf "    ${C_GREEN}✓${C_RESET}  core arch desktop profile\n"
+  printf '\n'
+  printf "  Extras:\n"
+  printf "    [%s] git config\n" "$( ((WITH_GIT_CONFIG)) && printf 'x' || printf ' ' )"
+  printf "    [%s] asus hardware\n" "$( ((WITH_ASUS)) && printf 'x' || printf ' ' )"
   printf '\n'
   printf "  Pacman packages: %s\n" "${PACMAN_PACKAGES[*]:-(none)}"
   printf "  AUR packages:    %s\n" "${AUR_PACKAGES[*]:-(none)}"
@@ -523,85 +423,62 @@ install_dsearch() {
   chmod +x "$HOME/.local/bin/dsearch"
 }
 
-# ── component application ────────────────────────────────────────────────────
-apply_component() {
+apply_core_profile() {
   local repo_root="$1"
-  local comp="$2"
 
-  case "$comp" in
-    shell)
-      install_file "$repo_root/home/.profile" "$HOME/.profile"
-      install_file "$repo_root/home/.zshrc" "$HOME/.zshrc"
-      install_dir  "$repo_root/config/fish" "$HOME/.config/fish"
-      ;;
-    terminal)
-      install_dir "$repo_root/config/ghostty" "$HOME/.config/ghostty"
-      ;;
-    niri)
-      install_dir "$repo_root/config/niri" "$HOME/.config/niri"
-      ;;
-    dms)
-      install_dir  "$repo_root/config/DankMaterialShell" "$HOME/.config/DankMaterialShell"
-      install_file "$repo_root/services/user/dms.service" "$HOME/.config/systemd/user/dms.service"
-      ;;
-    desktop)
-      install_file "$repo_root/config/dolphinrc" "$HOME/.config/dolphinrc"
-      install_file "$repo_root/config/kdeglobals" "$HOME/.config/kdeglobals"
-      install_dir  "$repo_root/config/qt5ct" "$HOME/.config/qt5ct"
-      install_dir  "$repo_root/config/qt6ct" "$HOME/.config/qt6ct"
-      install_rendered_home_file "$repo_root/config/qt5ct/qt5ct.conf" "$HOME/.config/qt5ct/qt5ct.conf"
-      install_rendered_home_file "$repo_root/config/qt6ct/qt6ct.conf" "$HOME/.config/qt6ct/qt6ct.conf"
-      ;;
-    tools)
-      install_dir  "$repo_root/config/btop" "$HOME/.config/btop"
-      install_file "$repo_root/local/bin/brightness" "$HOME/.local/bin/brightness"
-      install_file "$repo_root/local/bin/niri-screenshot-select.sh" "$HOME/.local/bin/niri-screenshot-select.sh"
-      chmod +x "$HOME/.local/bin/brightness" "$HOME/.local/bin/niri-screenshot-select.sh"
-      ;;
-    apps)
-      ;;
-    assets)
-      install_dir_contents "$repo_root/assets/fonts" "$HOME/.local/share/fonts"
-      install_dir_contents "$repo_root/assets/icons" "$HOME/.local/share/icons"
-      install_dir_contents "$repo_root/assets/wallpapers" "$HOME/Pictures/Wallpapers"
-      ;;
-    git)
-      install_file "$repo_root/home/.gitconfig" "$HOME/.gitconfig"
-      ;;
-    search)
-      install_file "$repo_root/services/user/dsearch.service" "$HOME/.config/systemd/user/dsearch.service"
-      render_dsearch_config
-      install_dsearch
-      ;;
-    *)
-      die "unknown component: $comp"
-      ;;
-  esac
+  install_file "$repo_root/home/.profile" "$HOME/.profile"
+  install_file "$repo_root/home/.zshrc" "$HOME/.zshrc"
+  install_dir  "$repo_root/config/fish" "$HOME/.config/fish"
+
+  install_dir "$repo_root/config/ghostty" "$HOME/.config/ghostty"
+  install_dir "$repo_root/config/niri" "$HOME/.config/niri"
+
+  install_dir  "$repo_root/config/DankMaterialShell" "$HOME/.config/DankMaterialShell"
+  install_file "$repo_root/services/user/dms.service" "$HOME/.config/systemd/user/dms.service"
+
+  install_file "$repo_root/config/dolphinrc" "$HOME/.config/dolphinrc"
+  install_file "$repo_root/config/kdeglobals" "$HOME/.config/kdeglobals"
+  install_dir  "$repo_root/config/qt5ct" "$HOME/.config/qt5ct"
+  install_dir  "$repo_root/config/qt6ct" "$HOME/.config/qt6ct"
+  install_rendered_home_file "$repo_root/config/qt5ct/qt5ct.conf" "$HOME/.config/qt5ct/qt5ct.conf"
+  install_rendered_home_file "$repo_root/config/qt6ct/qt6ct.conf" "$HOME/.config/qt6ct/qt6ct.conf"
+
+  install_dir  "$repo_root/config/btop" "$HOME/.config/btop"
+  install_file "$repo_root/local/bin/brightness" "$HOME/.local/bin/brightness"
+  install_file "$repo_root/local/bin/niri-screenshot-select.sh" "$HOME/.local/bin/niri-screenshot-select.sh"
+  chmod +x "$HOME/.local/bin/brightness" "$HOME/.local/bin/niri-screenshot-select.sh"
+
+  install_dir_contents "$repo_root/assets/fonts" "$HOME/.local/share/fonts"
+  install_dir_contents "$repo_root/assets/icons" "$HOME/.local/share/icons"
+  install_dir_contents "$repo_root/assets/wallpapers" "$HOME/Pictures/Wallpapers"
 }
 
-apply_selected_components() {
+apply_optional_features() {
   local repo_root="$1"
-  local comp
+
+  if ((WITH_GIT_CONFIG)); then
+    info "git config"
+    install_file "$repo_root/home/.gitconfig" "$HOME/.gitconfig"
+  fi
+}
+
+apply_profile() {
+  local repo_root="$1"
 
   mkdir -p "$HOME/.config" "$HOME/.local/bin" "$HOME/.config/systemd/user" "$HOME/.local/share/fonts" "$HOME/.local/share/icons" "$HOME/Pictures/Wallpapers"
 
-  log "installing selected components"
-  for comp in "${SELECTED_COMPONENTS[@]}"; do
-    info "$comp"
-    apply_component "$repo_root" "$comp"
-  done
+  log "installing core profile"
+  info "core profile"
+  apply_core_profile "$repo_root"
+  info "search"
+  install_file "$repo_root/services/user/dsearch.service" "$HOME/.config/systemd/user/dsearch.service"
+  render_dsearch_config
+  install_dsearch
+  apply_optional_features "$repo_root"
 }
 
 post_install() {
-  local comp has_assets=0 has_dms=0 has_search=0
-
-  for comp in "${SELECTED_COMPONENTS[@]}"; do
-    [[ "$comp" == "assets" ]] && has_assets=1
-    [[ "$comp" == "dms" ]] && has_dms=1
-    [[ "$comp" == "search" ]] && has_search=1
-  done
-
-  if ((has_assets)) && command -v fc-cache >/dev/null 2>&1; then
+  if command -v fc-cache >/dev/null 2>&1; then
     fc-cache -fv >/dev/null || true
   fi
 
@@ -610,10 +487,9 @@ post_install() {
     return
   fi
 
-  if ((has_dms)); then
-    systemctl --user enable --now dms.service || warn "failed to enable dms.service"
-  fi
-  if ((has_search)) && command -v dsearch >/dev/null 2>&1; then
+  systemctl --user enable --now dms.service || warn "failed to enable dms.service"
+
+  if command -v dsearch >/dev/null 2>&1; then
     systemctl --user enable --now dsearch.service || warn "failed to enable dsearch.service"
   fi
 }
@@ -640,15 +516,12 @@ main() {
   local repo_root
   repo_root="$(resolve_repo_dir)"
 
-  resolve_selected_components
-  [[ ${#SELECTED_COMPONENTS[@]} -gt 0 ]] || die "no components selected"
-
-  collect_packages
+  collect_packages "$repo_root"
   confirm_plan
 
   install_packages
   validate_runtime_requirements
-  apply_selected_components "$repo_root"
+  apply_profile "$repo_root"
   post_install
 
   printf '\n'

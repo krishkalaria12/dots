@@ -1,4 +1,3 @@
 dms-shell-git
-zed-preview-bin
 zen-browser-bin
 whitesur-icon-theme
