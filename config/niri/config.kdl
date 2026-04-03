@@ -89,7 +89,7 @@ binds {
 
     Mod+T { spawn "ghostty"; }
     Mod+E { spawn "dolphin"; }
-    Mod+C { spawn "zed"; }
+    Mod+C { spawn "ghostty" "-e" "nvim"; }
     Mod+W { spawn "zen-browser"; }
     Mod+V { spawn "dms" "ipc" "clipboard" "toggle"; }
     Mod+N { spawn "hyprpicker" "-a"; }
@@ -151,10 +151,6 @@ binds {
     XF86MonBrightnessUp   { spawn "brightness" "+2%"; }
     XF86MonBrightnessDown { spawn "brightness" "2%-"; }
 
-    XF86KbdBrightnessUp { spawn "asusctl" "leds" "next"; }
-	XF86KbdBrightnessDown { spawn "asusctl" "leds" "prev"; }
-
-	
     Mod+TouchpadScrollDown { spawn "brightness" "+2%"; }
     Mod+TouchpadScrollUp   { spawn "brightness" "2%-"; }
 

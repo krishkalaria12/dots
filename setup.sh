@@ -29,14 +29,15 @@ COMPONENTS_ARG=""
 # ── component catalogue ───────────────────────────────────────────────────────
 # package tokens prefixed with aur: are installed with yay.
 COMPONENT_DEFS=(
-  "shell|Home shell env, fish, zsh, git config|fish zsh fastfetch starship zoxide"
+  "shell|Portable shell env, fish, zsh, and editor|fish zsh neovim fastfetch starship zoxide eza"
   "terminal|Ghostty terminal|ghostty"
-  "niri|Niri compositor config|niri"
+  "niri|Niri compositor config|niri xdg-desktop-portal xdg-desktop-portal-gtk"
   "dms|Dank Material Shell, launcher, and shell integration|aur:dms-shell-git hyprpicker wl-clipboard cliphist pipewire wireplumber"
   "desktop|Dolphin plus KDE/Qt theming|dolphin qt5ct-kde qt6ct-kde"
   "tools|Btop and local helper scripts|btop grim slurp brightnessctl"
   "apps|Default app targets from keybinds|aur:zed-preview-bin aur:zen-browser-bin"
   "assets|Fonts, cursor theme, and wallpapers|aur:whitesur-icon-theme papirus-icon-theme"
+  "git|Safe git defaults (opt-in)|"
   "search|DankSearch file search backend|go"
 )
 
@@ -67,7 +68,7 @@ options:
   --repo-dir PATH        target directory for the downloaded repo (default: ${INSTALL_DIR})
   --components LIST      comma-separated list of components to install without
                          the interactive menu (e.g. shell,terminal,niri)
-                         valid components: shell terminal niri dms desktop tools apps assets search
+                         valid components: shell terminal niri dms desktop tools apps assets git search
   --non-interactive      install all components without prompting
   --skip-packages        skip package installation
   --skip-backup          skip backup creation before overwrite
@@ -129,6 +130,61 @@ append_unique() {
     [[ "$item" == "$value" ]] && return 0
   done
   return 1
+}
+
+component_commands() {
+  case "$1" in
+    terminal)
+      printf '%s\n' ghostty
+      ;;
+    niri)
+      printf '%s\n' niri
+      ;;
+    dms)
+      printf '%s\n' dms hyprpicker wl-paste cliphist wpctl systemctl
+      ;;
+    desktop)
+      printf '%s\n' dolphin
+      ;;
+    tools)
+      printf '%s\n' brightnessctl grim slurp
+      ;;
+    apps)
+      printf '%s\n' zed zen-browser
+      ;;
+    git)
+      printf '%s\n' git
+      ;;
+    search)
+      printf '%s\n' git go
+      ;;
+  esac
+}
+
+validate_runtime_requirements() {
+  local required=()
+  local missing=()
+  local comp cmd
+
+  for comp in "${SELECTED_COMPONENTS[@]}"; do
+    while IFS= read -r cmd; do
+      [[ -n "$cmd" ]] || continue
+      append_unique "$cmd" "${required[@]:-}" || required+=("$cmd")
+    done < <(component_commands "$comp")
+  done
+
+  for cmd in "${required[@]:-}"; do
+    command -v "$cmd" >/dev/null 2>&1 || missing+=("$cmd")
+  done
+
+  if ((${#missing[@]})); then
+    die "missing required commands for selected components: ${missing[*]}"
+  fi
+}
+
+require_arch_environment() {
+  command -v pacman >/dev/null 2>&1 || die "this installer only supports Arch/pacman-based systems"
+  [[ -f /etc/arch-release ]] || warn "'/etc/arch-release' not found; continuing because pacman is available"
 }
 
 # ── repo resolution ───────────────────────────────────────────────────────────
@@ -372,6 +428,14 @@ install_dir_contents() {
   shopt -u nullglob dotglob
 }
 
+install_rendered_home_file() {
+  local src="$1"
+  local dest="$2"
+  mkdir -p "$(dirname "$dest")"
+  backup_if_exists "$dest"
+  sed "s#__HOME__#$HOME#g" "$src" > "$dest"
+}
+
 # ── package installation ──────────────────────────────────────────────────────
 install_packages() {
   if ((SKIP_PACKAGES)); then
@@ -397,26 +461,8 @@ install_packages() {
 # ── dsearch ───────────────────────────────────────────────────────────────────
 render_dsearch_config() {
   local config_dir="$HOME/.config/danksearch"
-  local coding_root="$HOME/Desktop/Coding"
-  local coding_block=""
 
   mkdir -p "$config_dir"
-  if [[ -d "$coding_root" ]]; then
-    coding_block=$(cat <<EOF
-[[index_paths]]
-path = "$coding_root"
-max_depth = 8
-exclude_hidden = true
-extract_exif = false
-exclude_dirs = [
-  "node_modules", "bower_components", "__pycache__", "site-packages",
-  "venv", ".venv", "target", "dist", "build", "vendor", ".cache",
-  ".git", ".idea", ".vscode", "coverage", ".next", "out"
-]
-
-EOF
-)
-  fi
 
   cat > "$config_dir/config.toml" <<EOF
 index_path = "$HOME/.cache/danksearch/index"
@@ -433,7 +479,7 @@ text_extensions = [
   ".lua", ".kdl", ".conf", ".ini",
 ]
 
-${coding_block}[[index_paths]]
+[[index_paths]]
 path = "$HOME/Documents"
 max_depth = 6
 exclude_hidden = false
@@ -486,7 +532,6 @@ apply_component() {
     shell)
       install_file "$repo_root/home/.profile" "$HOME/.profile"
       install_file "$repo_root/home/.zshrc" "$HOME/.zshrc"
-      install_file "$repo_root/home/.gitconfig" "$HOME/.gitconfig"
       install_dir  "$repo_root/config/fish" "$HOME/.config/fish"
       ;;
     terminal)
@@ -504,6 +549,8 @@ apply_component() {
       install_file "$repo_root/config/kdeglobals" "$HOME/.config/kdeglobals"
       install_dir  "$repo_root/config/qt5ct" "$HOME/.config/qt5ct"
       install_dir  "$repo_root/config/qt6ct" "$HOME/.config/qt6ct"
+      install_rendered_home_file "$repo_root/config/qt5ct/qt5ct.conf" "$HOME/.config/qt5ct/qt5ct.conf"
+      install_rendered_home_file "$repo_root/config/qt6ct/qt6ct.conf" "$HOME/.config/qt6ct/qt6ct.conf"
       ;;
     tools)
       install_dir  "$repo_root/config/btop" "$HOME/.config/btop"
@@ -517,6 +564,9 @@ apply_component() {
       install_dir_contents "$repo_root/assets/fonts" "$HOME/.local/share/fonts"
       install_dir_contents "$repo_root/assets/icons" "$HOME/.local/share/icons"
       install_dir_contents "$repo_root/assets/wallpapers" "$HOME/Pictures/Wallpapers"
+      ;;
+    git)
+      install_file "$repo_root/home/.gitconfig" "$HOME/.gitconfig"
       ;;
     search)
       install_file "$repo_root/services/user/dsearch.service" "$HOME/.config/systemd/user/dsearch.service"
@@ -551,23 +601,20 @@ post_install() {
     [[ "$comp" == "search" ]] && has_search=1
   done
 
-  if ((has_assets)); then
+  if ((has_assets)) && command -v fc-cache >/dev/null 2>&1; then
     fc-cache -fv >/dev/null || true
   fi
 
-  if command -v gsettings >/dev/null 2>&1; then
-    if ((has_assets)); then
-      gsettings set org.gnome.desktop.interface icon-theme 'WhiteSur-dark' || true
-      gsettings set org.gnome.desktop.interface cursor-theme 'Sweet-cursors' || true
-    fi
+  if ! systemctl --user daemon-reload; then
+    warn "failed to reload user systemd units"
+    return
   fi
 
-  systemctl --user daemon-reload || true
   if ((has_dms)); then
-    systemctl --user enable --now dms.service || true
+    systemctl --user enable --now dms.service || warn "failed to enable dms.service"
   fi
   if ((has_search)) && command -v dsearch >/dev/null 2>&1; then
-    systemctl --user enable --now dsearch.service || true
+    systemctl --user enable --now dsearch.service || warn "failed to enable dsearch.service"
   fi
 }
 
@@ -588,6 +635,7 @@ print_banner() {
 # ── main ──────────────────────────────────────────────────────────────────────
 main() {
   print_banner
+  require_arch_environment
 
   local repo_root
   repo_root="$(resolve_repo_dir)"
@@ -599,6 +647,7 @@ main() {
   confirm_plan
 
   install_packages
+  validate_runtime_requirements
   apply_selected_components "$repo_root"
   post_install
 

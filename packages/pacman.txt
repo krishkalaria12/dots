@@ -4,9 +4,13 @@ ghostty
 dolphin
 fish
 zsh
+neovim
+eza
 btop
 
 # wayland tools
+xdg-desktop-portal
+xdg-desktop-portal-gtk
 wl-clipboard
 cliphist
 grim

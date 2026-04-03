@@ -2,72 +2,30 @@
 #  「✦ FISH CONFIG ✦ 」
 # ─────────────────────────────────────────────────────────────────────
 
+set -gx XDG_CONFIG_HOME "$HOME/.config"
+set -gx XDG_CACHE_HOME "$HOME/.cache"
+set -gx XDG_DATA_HOME "$HOME/.local/share"
+set -gx XDG_STATE_HOME "$HOME/.local/state"
+
 # ── INTERACTIVE SHELL ────────────────────────────────────────────────
 if status is-interactive
     set fish_greeting ""
-    # fastfetch --logo none
-    nerdfetch
+
+    if command -q fastfetch
+        fastfetch --logo none
+    end
 end
 
 # ── ALIASES ──────────────────────────────────────────────────────────
-alias ls 'eza --icons'
-alias matrix 'unimatrix -s 96'
-alias dev 'cd ~/Desktop/dev'
-alias ani ani-cli
+alias ls 'eza --icons --group-directories-first'
+alias ll 'eza --icons --group-directories-first -la'
 alias ff fastfetch
-alias hyprland.conf 'nvim ~/.config/hypr/hyprland.conf'
-alias clock 'tty-clock -c -t -s'
-alias sync:Arch 'rclone sync ~/Arch gdrive:Arch --progress'
-alias dot 'git --git-dir=$HOME/.dotfiles/ --work-tree=$HOME'
-alias glog 'git log --pretty=format:"%ad | %h | %s" --date=format:"%H:%M:%S"'
-alias uni 'cd ~/Desktop/23BCE5135/'
-alias helium helium-browser
+alias cls clear
 alias files 'dolphin . & disown'
+alias s 'sudo systemctl'
+alias update 'yay -Syu'
 
-# ── FUNCTIONS ────────────────────────────────────────────────────────
-function gcl
-    if test (count $argv) -lt 1
-        echo "usage: gcl <repo> [dir]"
-        return 1
-    end
-
-    set repo $argv[1]
-    set dir $argv[2]
-
-    if test -n "$dir"
-        git clone git@github.com:d1rshan/$repo.git $dir
-    else
-        git clone git@github.com:d1rshan/$repo.git
-    end
-end
-
-function 2pdf
-    if test (count $argv) -ne 1
-        echo "Usage: 2pdf <file-or-directory>"
-        return 1
-    end
-
-    set target $argv[1]
-
-    if test -d $target
-        for f in $target/*.{ppt,pptx,doc,docx,xls,xlsx,odt,odp,ods}
-            if test -e $f
-                echo "Converting $f"
-                libreoffice --headless --convert-to pdf "$f"
-            end
-        end
-        return
-    end
-
-    libreoffice --headless --convert-to pdf "$target"
-end
-
-function dots
-    set -lx GIT_DIR $HOME/.dotfiles
-    set -lx GIT_WORK_TREE $HOME
-    nvim ~/.config
-end
-
+# ── KEY BINDINGS ─────────────────────────────────────────────────────
 function fish_user_key_bindings
     bind ctrl-backspace backward-kill-word repaint
     bind alt-backspace backward-kill-word repaint
@@ -75,28 +33,28 @@ end
 
 # ── TOOL INITIALIZATION ──────────────────────────────────────────────
 if status is-interactive
-    starship init fish | source
+    if command -q starship
+        starship init fish | source
+    end
+
+    if command -q zoxide
+        zoxide init fish | source
+    end
 end
 
 # ── ENVIRONMENT ──────────────────────────────────────────────────────
-set -x EDITOR nvim
-set -gx BUN_INSTALL "$HOME/.bun"
-
-# PATH
 fish_add_path $HOME/.local/bin
 
-# PNPM
-set -gx PNPM_HOME "$HOME/.local/share/pnpm"
-if not string match -q -- $PNPM_HOME $PATH
-    set -gx PATH "$PNPM_HOME" $PATH
+if command -q nvim
+    set -gx EDITOR nvim
+else if command -q vim
+    set -gx EDITOR vim
+else
+    set -gx EDITOR vi
 end
 
-# FNM (FAST NODE MANAGER)
-set FNM_PATH "$HOME/.local/share/fnm"
-if [ -d "$FNM_PATH" ]
-    set PATH "$FNM_PATH" $PATH
-    fnm env | source
-end
+set -gx VISUAL $EDITOR
 
-# opencode
-fish_add_path /home/krish/.opencode/bin
+if test -f "$XDG_CONFIG_HOME/fish/config.local.fish"
+    source "$XDG_CONFIG_HOME/fish/config.local.fish"
+end
