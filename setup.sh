@@ -657,10 +657,12 @@ apply_core_profile() {
 
   install_dir "$repo_root/config/ghostty" "$HOME/.config/ghostty"
   install_dir "$repo_root/config/niri" "$HOME/.config/niri"
+  install_dir "$repo_root/config/xdg-desktop-portal" "$HOME/.config/xdg-desktop-portal"
 
   install_dir  "$repo_root/config/DankMaterialShell" "$HOME/.config/DankMaterialShell"
   install_file "$repo_root/services/user/dms.service" "$HOME/.config/systemd/user/dms.service"
 
+  install_file "$repo_root/config/chrome-flags.conf" "$HOME/.config/chrome-flags.conf"
   install_file "$repo_root/config/dolphinrc" "$HOME/.config/dolphinrc"
   install_file "$repo_root/config/kdeglobals" "$HOME/.config/kdeglobals"
   install_dir  "$repo_root/config/qt5ct" "$HOME/.config/qt5ct"

@@ -14,6 +14,7 @@ rsync
 # wayland tools
 xdg-desktop-portal
 xdg-desktop-portal-gtk
+xdg-desktop-portal-gnome
 xdg-user-dirs
 wl-clipboard
 cliphist
