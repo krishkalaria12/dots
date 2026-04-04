@@ -1,2 +1,0 @@
-# hardware-specific or quality-of-life extras
-asusctl

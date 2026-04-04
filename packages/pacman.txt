@@ -35,9 +35,12 @@ zoxide
 
 # connectivity and device integration
 networkmanager
+plasma-nm
 bluez
 bluez-utils
+bluedevil
 upower
+gnome-keyring
 
 # desktop auth integration
 polkit-kde-agent

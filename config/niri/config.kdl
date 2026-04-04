@@ -19,11 +19,10 @@ screenshot-path "~/Pictures/Screenshots/Screenshot from %Y-%m-%d %H-%M-%S.png"
 
 environment {
     XDG_CURRENT_DESKTOP "niri"
+    XDG_MENU_PREFIX "plasma-"
     QT_QPA_PLATFORM "wayland"
     ELECTRON_OZONE_PLATFORM_HINT "auto"
     QT_QPA_PLATFORMTHEME "kde"
-    KDE_SESSION_VERSION "6"
-    KDE_FULL_SESSION "true"
 }
 
 input {
@@ -164,6 +163,8 @@ binds {
 // STARTUP //
 /////////////
 
+spawn-at-startup "dbus-update-activation-environment" "--systemd" "--all"
+spawn-at-startup "gnome-keyring-daemon" "--start" "--components=secrets"
 spawn-at-startup "/usr/lib/polkit-kde-authentication-agent-1"
 spawn-at-startup "bash" "-lc" "wl-paste --watch cliphist store &"
 spawn-at-startup "systemctl" "start" "--user" "dms.service"

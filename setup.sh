@@ -169,6 +169,8 @@ core_commands() {
     bluetoothctl \
     upower \
     fc-cache \
+    dbus-update-activation-environment \
+    gnome-keyring-daemon \
     brightnessctl \
     grim \
     slurp \
@@ -448,7 +450,7 @@ collect_packages() {
   read_manifest_into "$repo_root/packages/aur.txt" aur
 
   if ((WITH_ASUS)); then
-    read_manifest_into "$repo_root/packages/optional.txt" pacman
+    read_manifest_into "$repo_root/packages/optional-asus.txt" pacman
   fi
 }
 

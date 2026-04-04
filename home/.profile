@@ -23,5 +23,4 @@ export TERMINAL=ghostty
 export __GL_SHADER_DISK_CACHE_PATH="$HOME/.cache/nv"
 export _JAVA_AWT_WM_NONREPARENTING=1
 export QT_QPA_PLATFORMTHEME=kde
-export KDE_SESSION_VERSION=6
-export KDE_FULL_SESSION=true
+export XDG_MENU_PREFIX=plasma-
