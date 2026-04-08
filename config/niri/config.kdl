@@ -167,4 +167,7 @@ spawn-at-startup "dbus-update-activation-environment" "--systemd" "--all"
 spawn-at-startup "gnome-keyring-daemon" "--start" "--components=secrets"
 spawn-at-startup "/usr/lib/polkit-kde-authentication-agent-1"
 spawn-at-startup "bash" "-lc" "wl-paste --watch cliphist store &"
+// Restart portals after importing the session environment so screencast apps like OBS see capture targets.
+spawn-at-startup "systemctl" "--user" "import-environment" "DISPLAY" "WAYLAND_DISPLAY" "XDG_CURRENT_DESKTOP" "XDG_SESSION_TYPE" "XDG_SESSION_DESKTOP" "DBUS_SESSION_BUS_ADDRESS"
+spawn-at-startup "systemctl" "--user" "restart" "xdg-desktop-portal.service" "xdg-desktop-portal-gnome.service" "xdg-desktop-portal-gtk.service"
 spawn-at-startup "systemctl" "start" "--user" "dms.service"
