@@ -30,6 +30,7 @@ SKIP_PACKAGES=0
 SKIP_BACKUP=0
 WITH_GIT_CONFIG=0
 WITH_ASUS=0
+COMPOSITOR="${COMPOSITOR:-niri}"
 CURRENT_MANIFEST_FILE=""
 INSTALL_FIRSTRUN=0
 
@@ -59,13 +60,14 @@ options:
   --repo-dir PATH        target directory for the downloaded repo (default: ${INSTALL_DIR})
   --with-git-config      install the optional ~/.gitconfig shipped in this repo
   --with-asus            install the optional asus hardware package set
+  --compositor NAME      install compositor profile: niri or hyprland (default: ${COMPOSITOR})
   --non-interactive      skip the confirmation prompt
   --skip-packages        skip package installation
   --skip-backup          skip backup creation before overwrite
   -h, --help             show this help message
 
 environment overrides:
-  REPO_URL, REPO_BRANCH, INSTALL_DIR, DSEARCH_DIR
+  REPO_URL, REPO_BRANCH, INSTALL_DIR, DSEARCH_DIR, COMPOSITOR
 EOF
 }
 
@@ -85,6 +87,9 @@ while (($# > 0)); do
       WITH_GIT_CONFIG=1; shift ;;
     --with-asus)
       WITH_ASUS=1; shift ;;
+    --compositor)
+      [[ $# -ge 2 ]] || die "--compositor requires a value"
+      COMPOSITOR="$2"; shift 2 ;;
     --non-interactive)
       NON_INTERACTIVE=1; shift ;;
     --skip-packages)
@@ -97,6 +102,15 @@ while (($# > 0)); do
       die "unknown option: $1" ;;
   esac
 done
+
+validate_compositor() {
+  case "$COMPOSITOR" in
+    niri|hyprland) ;;
+    *)
+      die "unsupported compositor: $COMPOSITOR (expected: niri or hyprland)"
+      ;;
+  esac
+}
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 need_cmd() {
@@ -150,7 +164,6 @@ read_manifest_into() {
 core_commands() {
   printf '%s\n' \
     git \
-    niri \
     dms \
     go \
     ghostty \
@@ -181,6 +194,22 @@ core_runtime_paths() {
   printf '%s\n' /usr/lib/polkit-kde-authentication-agent-1
 }
 
+compositor_commands() {
+  case "$COMPOSITOR" in
+    niri)
+      printf '%s\n' niri
+      ;;
+    hyprland)
+      printf '%s\n' \
+        Hyprland \
+        hypridle \
+        hyprlock \
+        hyprpaper \
+        hyprshot
+      ;;
+  esac
+}
+
 optional_commands() {
   if ((WITH_GIT_CONFIG)); then
     printf '%s\n' git
@@ -207,6 +236,11 @@ validate_runtime_requirements() {
     [[ -n "$cmd" ]] || continue
     append_unique "$cmd" "${required[@]:-}" || required+=("$cmd")
   done < <(optional_commands)
+
+  while IFS= read -r cmd; do
+    [[ -n "$cmd" ]] || continue
+    append_unique "$cmd" "${required[@]:-}" || required+=("$cmd")
+  done < <(compositor_commands)
 
   while IFS= read -r cmd; do
     [[ -n "$cmd" ]] || continue
@@ -341,6 +375,7 @@ repo_dir=$1
 first_run=$INSTALL_FIRSTRUN
 with_git_config=$WITH_GIT_CONFIG
 with_asus=$WITH_ASUS
+compositor=$COMPOSITOR
 EOF
 
   cleanup_install_state
@@ -448,6 +483,7 @@ collect_packages() {
 
   read_manifest_into "$repo_root/packages/pacman.txt" pacman
   read_manifest_into "$repo_root/packages/aur.txt" aur
+  read_manifest_into "$repo_root/packages/compositor-${COMPOSITOR}.txt" pacman
 
   if ((WITH_ASUS)); then
     read_manifest_into "$repo_root/packages/optional-asus.txt" pacman
@@ -459,6 +495,7 @@ confirm_plan() {
   printf "${C_BOLD}${C_CYAN}  Installation plan${C_RESET}\n\n"
   printf "  Profile:\n"
   printf "    ${C_GREEN}✓${C_RESET}  core arch desktop profile\n"
+  printf "    ${C_GREEN}✓${C_RESET}  compositor: %s\n" "$COMPOSITOR"
   printf '\n'
   printf "  Extras:\n"
   printf "    [%s] git config\n" "$( ((WITH_GIT_CONFIG)) && printf 'x' || printf ' ' )"
@@ -658,7 +695,6 @@ apply_core_profile() {
   install_dir  "$repo_root/config/fish" "$HOME/.config/fish"
 
   install_dir "$repo_root/config/ghostty" "$HOME/.config/ghostty"
-  install_dir "$repo_root/config/niri" "$HOME/.config/niri"
   install_dir "$repo_root/config/xdg-desktop-portal" "$HOME/.config/xdg-desktop-portal"
 
   install_dir  "$repo_root/config/DankMaterialShell" "$HOME/.config/DankMaterialShell"
@@ -674,12 +710,30 @@ apply_core_profile() {
 
   install_dir  "$repo_root/config/btop" "$HOME/.config/btop"
   install_file "$repo_root/local/bin/brightness" "$HOME/.local/bin/brightness"
-  install_file "$repo_root/local/bin/niri-screenshot-select.sh" "$HOME/.local/bin/niri-screenshot-select.sh"
-  chmod +x "$HOME/.local/bin/brightness" "$HOME/.local/bin/niri-screenshot-select.sh"
+  chmod +x "$HOME/.local/bin/brightness"
 
   install_dir_contents "$repo_root/assets/fonts" "$HOME/.local/share/fonts"
   install_dir_contents "$repo_root/assets/icons" "$HOME/.local/share/icons"
   install_dir_contents "$repo_root/assets/wallpapers" "$HOME/Pictures/Wallpapers"
+}
+
+apply_compositor_profile() {
+  local repo_root="$1"
+
+  case "$COMPOSITOR" in
+    niri)
+      info "compositor: niri"
+      install_dir "$repo_root/config/niri" "$HOME/.config/niri"
+      install_file "$repo_root/local/bin/niri-screenshot-select.sh" "$HOME/.local/bin/niri-screenshot-select.sh"
+      chmod +x "$HOME/.local/bin/niri-screenshot-select.sh"
+      ;;
+    hyprland)
+      info "compositor: hyprland"
+      install_dir "$repo_root/config/hypr" "$HOME/.config/hypr"
+      install_rendered_home_file "$repo_root/config/hypr/hyprlock.conf" "$HOME/.config/hypr/hyprlock.conf"
+      install_rendered_home_file "$repo_root/config/hypr/hyprpaper.conf" "$HOME/.config/hypr/hyprpaper.conf"
+      ;;
+  esac
 }
 
 apply_optional_features() {
@@ -699,6 +753,7 @@ apply_profile() {
   log "installing core profile"
   info "core profile"
   apply_core_profile "$repo_root"
+  apply_compositor_profile "$repo_root"
   info "search"
   install_file "$repo_root/services/user/dsearch.service" "$HOME/.config/systemd/user/dsearch.service"
   render_dsearch_config
@@ -733,12 +788,23 @@ verify_install() {
   verify_user_service_enabled dms.service
   verify_user_service_enabled dsearch.service
 
-  verify_exists "$HOME/.config/niri/config.kdl"
   verify_exists "$HOME/.config/systemd/user/dms.service"
   verify_exists "$HOME/.config/systemd/user/dsearch.service"
   verify_exists "$HOME/.local/bin/dsearch"
   verify_exists "$HOME/.local/bin/brightness"
-  verify_exists "$HOME/.local/bin/niri-screenshot-select.sh"
+  case "$COMPOSITOR" in
+    niri)
+      verify_exists "$HOME/.config/niri/config.kdl"
+      verify_exists "$HOME/.local/bin/niri-screenshot-select.sh"
+      ;;
+    hyprland)
+      verify_exists "$HOME/.config/hypr/hyprland.conf"
+      verify_exists "$HOME/.config/hypr/hypridle.conf"
+      verify_exists "$HOME/.config/hypr/hyprlock.conf"
+      verify_exists "$HOME/.config/hypr/hyprpaper.conf"
+      verify_exists "$HOME/.config/xdg-desktop-portal/hyprland-portals.conf"
+      ;;
+  esac
   verify_exists "$INSTALL_MANIFEST"
   verify_exists "$LAST_INSTALL_FILE"
   verify_exists "$FIRSTRUN_FILE"
@@ -755,12 +821,13 @@ print_banner() {
   printf '  ██████╔╝╚██████╔╝   ██║   ███████║\n'
   printf '  ╚═════╝  ╚═════╝    ╚═╝   ╚══════╝\n'
   printf "${C_RESET}"
-  printf "${C_DIM}  krishkalaria12 · niri + dms dotfiles${C_RESET}\n\n"
+  printf "${C_DIM}  krishkalaria12 · compositor-selectable dms dotfiles${C_RESET}\n\n"
 }
 
 # ── main ──────────────────────────────────────────────────────────────────────
 main() {
   print_banner
+  validate_compositor
   require_arch_environment
   bootstrap_repo_access
 
@@ -789,7 +856,7 @@ main() {
   fi
   printf '  state:  %s\n' "$STATE_ROOT"
   printf '  repo:   %s\n' "$repo_root"
-  printf '  next:   reboot or log out, then choose the niri session in sddm\n\n'
+  printf '  next:   reboot or log out, then choose the %s session in sddm\n\n' "$COMPOSITOR"
 }
 
 main "$@"

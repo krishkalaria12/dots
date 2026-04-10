@@ -1,6 +1,5 @@
 # core desktop
 git
-niri
 sddm
 ghostty
 dolphin

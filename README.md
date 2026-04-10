@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://readme-typing-svg.demolab.com?font=JetBrains+Mono&weight=700&size=28&duration=3000&pause=1000&color=C8C8C8&center=true&vCenter=true&width=560&lines=%E3%80%8C%E2%9C%A6+NIRI+%2B+DMS+DOTFILES+%E2%9C%A6%E3%80%8D;%E3%80%8C%E2%9C%A6+MINIMAL+%C3%97+FUNCTIONAL+%E2%9C%A6%E3%80%8D" alt="Niri dotfiles typing banner" />
+  <img src="https://readme-typing-svg.demolab.com?font=JetBrains+Mono&weight=700&size=28&duration=3000&pause=1000&color=C8C8C8&center=true&vCenter=true&width=640&lines=%E3%80%8C%E2%9C%A6+NIRI+%2F+HYPRLAND+%2B+DMS+DOTFILES+%E2%9C%A6%E3%80%8D;%E3%80%8C%E2%9C%A6+MINIMAL+%C3%97+FUNCTIONAL+%E2%9C%A6%E3%80%8D" alt="Compositor dotfiles typing banner" />
 </p>
 
 <p align="center">
@@ -10,7 +10,8 @@
 
 personal linux dotfiles built around:
 
-- `niri`
+- `niri` by default
+- `hyprland` as an installer option
 - `DankMaterialShell`
 - `ghostty`
 - `fish` / `zsh`
@@ -43,7 +44,7 @@ the repo is curated instead of dumping the whole home directory. the goal is to 
 
 ### Compositor
 >
-> Niri handles the tiled column workflow.
+> Niri is the default compositor profile, with Hyprland available through the installer.
 
 <p align="center">
   <img src="screenshots/niri.png" alt="Niri workspace view" width="100%" />
@@ -87,12 +88,13 @@ the session startup also initializes polkit, dbus activation updates, and secret
 
 ### Script Setup
 
-the default install path now targets one supported Arch profile.
+the default install path targets the `niri` profile, and the installer can switch to `hyprland`.
 
 optional extras:
 
 - `--with-git-config` installs the repo's `.gitconfig`
 - `--with-asus` installs the hardware-specific asus package set
+- `--compositor hyprland` installs the Hyprland profile instead of the default Niri profile
 
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/krishkalaria12/dots/main/setup.sh)
@@ -104,6 +106,12 @@ you can also run it from a local clone:
 git clone https://github.com/krishkalaria12/dots ~/dotfiles
 cd ~/dotfiles
 ./setup.sh
+```
+
+to install the hyprland profile instead:
+
+```bash
+./setup.sh --compositor hyprland
 ```
 
 ### Manual Setup
@@ -119,8 +127,11 @@ cd ~/dotfiles
 
 ```bash
 sudo pacman -S --needed $(grep -vE '^[[:space:]]*(#|$)' packages/pacman.txt)
+sudo pacman -S --needed $(grep -vE '^[[:space:]]*(#|$)' packages/compositor-niri.txt)
 yay -S --needed $(grep -vE '^[[:space:]]*(#|$)' packages/aur.txt)
 ```
+
+swap `packages/compositor-niri.txt` for `packages/compositor-hyprland.txt` if you want the Hyprland profile.
 
 hardware-specific extras live in `packages/optional-asus.txt`.
 
@@ -133,7 +144,10 @@ it also sets up system services so the machine can boot into the supported graph
 ./setup.sh --skip-packages
 ```
 
-4. log out and choose the `niri` session.
+4. log out and choose the installed session in SDDM:
+
+- `niri` by default
+- `hyprland` if you used `--compositor hyprland`
 
 > [!TIP]
 > A curated wallpaper pack is included in `assets/wallpapers/` if you want the same base set.
@@ -155,6 +169,7 @@ it also sets up system services so the machine can boot into the supported graph
 │   ├── dolphinrc
 │   ├── fish
 │   ├── ghostty
+│   ├── hypr
 │   ├── kdeglobals
 │   ├── niri
 │   ├── qt5ct
@@ -169,6 +184,8 @@ it also sets up system services so the machine can boot into the supported graph
 │       └── niri-screenshot-select.sh
 ├── packages
 │   ├── aur.txt
+│   ├── compositor-hyprland.txt
+│   ├── compositor-niri.txt
 │   ├── optional-asus.txt
 │   └── pacman.txt
 ├── screenshots
